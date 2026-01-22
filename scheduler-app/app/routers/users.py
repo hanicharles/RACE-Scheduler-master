@@ -125,9 +125,8 @@ def forgot_password(
     # Generate a reset token
     reset_token = auth.create_reset_token(data={"sub": user.email})
 
-    # In a real app, send an email. For now, we log it.
-    reset_link = f"http://localhost:3000/reset-password?token={reset_token}"
-    print(f"RESET LINK for {user.email}: {reset_link}")
+    # Send email
+    utils.email.send_reset_email(user.email, reset_token)
 
     return {"message": "If this email is registered, you will receive a reset link."}
 
