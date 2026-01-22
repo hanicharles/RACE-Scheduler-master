@@ -35,6 +35,10 @@ const Dashboard: React.FC = () => {
     const [hasLoadedUsers, setHasLoadedUsers] = useState(false);
     const [calendarView, setCalendarView] = useState('timeGridWeek'); // 👈 filter control
 
+    // Search & Filter State
+    const [searchQuery, setSearchQuery] = useState('');
+    const [filterParticipant, setFilterParticipant] = useState<number | null>(null);
+
     const token = localStorage.getItem('token');
 
     // ─────────── FETCH CURRENT USER ─────────── //
@@ -53,7 +57,11 @@ const Dashboard: React.FC = () => {
     // ─────────── FETCH EVENTS ─────────── //
     const fetchEvents = async () => {
         try {
-            const res = await api.get('/events/');
+            const params: any = {};
+            if (searchQuery) params.search = searchQuery;
+            if (filterParticipant) params.participant_id = filterParticipant;
+
+            const res = await api.get('/events/', { params });
             const mappedEvents = res.data.map((e: any) => ({
                 id: e.id,
                 title: e.title,
@@ -68,7 +76,7 @@ const Dashboard: React.FC = () => {
 
     useEffect(() => {
         fetchEvents();
-    }, []);
+    }, [searchQuery, filterParticipant]); // Re-fetch when filters change
 
     // ─────────── FETCH USERS ─────────── //
     const fetchUsers = async () => {
@@ -174,46 +182,81 @@ const Dashboard: React.FC = () => {
                 className='dashboard-header'
                 style={{
                     display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    marginBottom: '10px',
+                    flexDirection: 'column',
+                    gap: '15px',
+                    marginBottom: '20px',
                 }}
             >
-                <h2 style={{ margin: 0 }}>Calendar</h2>
-                <div style={{ display: 'flex', gap: '10px' }}>
-                    {/* 👇 Calendar View Filter */}
+                {/* Top Row: Title + Main Actions */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+                    <h2 style={{ margin: 0 }}>Calendar</h2>
+                    <div style={{ display: 'flex', gap: '10px' }}>
+                         {hasPermission(currentUser?.permissions, 'can_create_users') && (
+                            <Button
+                                type="primary"
+                                onClick={() => setIsInviteModalOpen(true)}
+                            >
+                                Invite User
+                            </Button>
+                        )}
+                        <Button
+                            className="logout-btn"
+                            onClick={() => {
+                                localStorage.removeItem('token');
+                                window.location.href = '/login';
+                            }}
+                        >
+                            Logout
+                        </Button>
+                    </div>
+                </div>
+
+                {/* Filter Row: Search + Filters + View Switcher */}
+                <div style={{
+                    display: 'flex',
+                    gap: '10px',
+                    alignItems: 'center',
+                    background: '#f5f5f5',
+                    padding: '10px',
+                    borderRadius: '8px',
+                    flexWrap: 'wrap'
+                }}>
+                    <Input.Search
+                        placeholder="Search events..."
+                        onSearch={(val) => setSearchQuery(val)}
+                        onChange={(e) => {
+                            // Optional: Real-time search if preferred, or just on Enter
+                            if (e.target.value === '') setSearchQuery('');
+                        }}
+                        style={{ width: 250 }}
+                        allowClear
+                    />
+
+                    <Select
+                        placeholder="Filter by Participant"
+                        style={{ width: 200 }}
+                        allowClear
+                        onChange={(val) => setFilterParticipant(val)}
+                        onFocus={fetchUsers} // Ensure users are loaded
+                        options={userOptions}
+                    />
+
+                    <div style={{ flex: 1 }}></div>
+
+                    <span style={{ fontWeight: 500 }}>View:</span>
                     <Select
                         value={calendarView}
                         onChange={(value) => setCalendarView(value)}
-                        style={{ width: 150 }}
+                        style={{ width: 120 }}
                     >
                         <Option value="dayGridDay">Day</Option>
                         <Option value="timeGridWeek">Week</Option>
                         <Option value="dayGridMonth">Month</Option>
-                        <Option value="listYear">Year</Option>
+                        <Option value="listYear">List</Option>
                     </Select>
-
-                    {hasPermission(currentUser?.permissions, 'can_create_users') && (
-                        <Button
-                            type="primary"
-                            onClick={() => setIsInviteModalOpen(true)}
-                        >
-                            Invite User
-                        </Button>
-                    )}
-                    <Button
-                        className="logout-btn"
-                        onClick={() => {
-                            localStorage.removeItem('token');
-                            window.location.href = '/login';
-                        }}
-                    >
-                        Logout
-                    </Button>
                 </div>
             </div>
 
-            {/* Calendar */}
             {/* Calendar */}
             <div className="calendar-glass-wrapper">
                 <FullCalendar
