@@ -73,6 +73,10 @@ const Login = () => {
                             Login
                         </Button>
                     </Form.Item>
+
+                    <div style={{ textAlign: 'center', marginTop: '10px' }}>
+                        <a href="/forgot-password" style={{ color: '#fff' }}>Forgot Password?</a>
+                    </div>
                 </Form>
             </Card>
         </div>

@@ -12,6 +12,18 @@ class UserPermissions(BaseModel):
         orm_mode = True
 
 
+# ─────────────── Forgot/Reset Password Schemas ─────────────── #
+
+class ForgotPasswordRequest(BaseModel):
+    email: EmailStr
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str
+    confirm_password: str
+
+
 # ─────────────── User Schemas ─────────────── #
 
 class UserBase(BaseModel):
