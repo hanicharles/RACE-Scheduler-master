@@ -1,19 +1,17 @@
-from sqlalchemy.orm import Session, joinedload
-from fastapi.security import OAuth2PasswordRequestForm
 from typing import List
-from app import crud, schemas, models, auth
+from datetime import datetime, timedelta
+import secrets
+
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.security import OAuth2PasswordRequestForm
+from sqlalchemy.orm import Session, joinedload
+from jose import jwt, JWTError
+
+from app import crud, schemas, models, auth, database, utils
 from app.database import SessionLocal
 from app.auth import get_current_user
-from app.crud import generate_invite_token
-from app.utils.email import send_invite_email
-from app.config import SECRET_KEY, ALGORITHM
-from fastapi import APIRouter, Depends, HTTPException, status
-from datetime import datetime, timedelta
-from jose import jwt, JWTError
-from app import models, schemas, utils, database, auth
 from app.config import SECRET_KEY, ALGORITHM, ACCESS_TOKEN_EXPIRE_MINUTES
 from app.utils.permissions import has_permission
-import secrets
 
 router = APIRouter(tags=["Users"])
 
@@ -112,6 +110,47 @@ def login(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depend
         raise HTTPException(status_code=401, detail="Invalid credentials")
     access_token = auth.create_access_token(data={"sub": user.email})
     return {"access_token": access_token, "token_type": "bearer"}
+
+
+@router.post("/forgot-password")
+def forgot_password(
+    request: schemas.ForgotPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    user = crud.get_user_by_email(db, email=request.email)
+    if not user:
+        # For security, do not reveal if the email exists or not
+        return {"message": "If this email is registered, you will receive a reset link."}
+
+    # Generate a reset token
+    reset_token = auth.create_reset_token(data={"sub": user.email})
+
+    # Send email
+    utils.email.send_reset_email(user.email, reset_token)
+
+    return {"message": "If this email is registered, you will receive a reset link."}
+
+
+@router.post("/reset-password")
+def reset_password(
+    request: schemas.ResetPasswordRequest,
+    db: Session = Depends(get_db)
+):
+    if request.new_password != request.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    email = auth.verify_reset_token(request.token)
+    if not email:
+        raise HTTPException(status_code=400, detail="Invalid or expired token")
+
+    user = crud.get_user_by_email(db, email=email)
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.hashed_password = auth.get_password_hash(request.new_password)
+    db.commit()
+
+    return {"message": "Password updated successfully"}
 
 
 @router.put("/{user_id}/permissions", response_model=schemas.UserOut)

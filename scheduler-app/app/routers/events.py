@@ -87,19 +87,31 @@ def create_event(
 
 @router.get("/", response_model=List[schemas.EventOut])
 def list_events(
+    search: str = None,
+    participant_id: int = None,
     db: Session = Depends(get_db),
     current_user: models.User = Depends(get_current_user),
 ):
-    # Load events where user is owner or participant; eager load role & permissions for participants
-    events = (
-        db.query(models.Event)
-        .options(joinedload(models.Event.participants).joinedload(models.User.role).joinedload(models.Role.permissions))
-        .filter(
-            (models.Event.user_id == current_user.id)
-            | (models.Event.participants.any(models.User.id == current_user.id))
-        )
-        .all()
+    # Start query
+    query = db.query(models.Event).options(
+        joinedload(models.Event.participants).joinedload(models.User.role).joinedload(models.Role.permissions)
     )
+
+    # 1. Base Security Filter: User must be owner OR participant
+    query = query.filter(
+        (models.Event.user_id == current_user.id)
+        | (models.Event.participants.any(models.User.id == current_user.id))
+    )
+
+    # 2. Apply Search Filter (Title)
+    if search:
+        query = query.filter(models.Event.title.ilike(f"%{search}%"))
+
+    # 3. Apply Participant Filter
+    if participant_id:
+        query = query.filter(models.Event.participants.any(models.User.id == participant_id))
+
+    events = query.all()
 
     result = [_serialize_event(e) for e in events]
     return result
